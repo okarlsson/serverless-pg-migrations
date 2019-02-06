@@ -10,21 +10,38 @@ const failure = response => ({
   body: JSON.stringify(response)
 });
 
-const handler = handlerName => (event, context, callback) => {
+const handler = handlerName => async (event, context, callback) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  const migration = new Migration(process.env.DATABASE_URL);
 
-  migration
-    [handlerName]()
-    .then(migrations => {
-      const response = migrations.map(({ file }) => file).join("\n");
-      migration.close();
-      callback(null, success(response));
-    })
-    .catch(err => {
-      migration.close();
+  const connectionString = `postgres://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${
+    process.env.DB_PORT
+  }/${process.env.DB_NAME}`;
+  
+  let result;
+  const migrations = new Migration(connectionString, 'migrations');
+  try{
+    const migrationResult = await migrations[handlerName]();
+    result = migrationResult.map(({ file }) => file).join("\n");
+    migrations.close();
+  }
+  catch(err){
+    migrations.close();
+    callback(err);
+  }
+  
+  if(process.env.SHOULD_SEED === 'true'){
+    const seeders = new Migration(connectionString, 'seeders');
+    try{
+      const seedingResult = await seeders[handlerName]();
+      result += seedingResult.map(({ file }) => file).join("\n");
+      seeders.close();
+    }catch(err){
+      seeders.close();
       callback(err);
-    });
+    }
+  }
+
+  callback(null, success(result));
 };
 
 module.exports.up = handler("up");

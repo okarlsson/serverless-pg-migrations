@@ -2,7 +2,8 @@ const Sequelize = require("sequelize");
 const Umzug = require("umzug");
 
 module.exports = class Migration {
-  constructor(connectionString) {
+  constructor(connectionString, directory) {
+    this.directory = directory;
     this.connectionString = connectionString;
     this.close = this.init();
   }
@@ -22,6 +23,7 @@ module.exports = class Migration {
         sequelize: this.sequelize
       },
       migrations: {
+        path: this.directory,
         params: [this.sequelize.getQueryInterface(), this.sequelize.constructor]
       },
       logging: function() {
